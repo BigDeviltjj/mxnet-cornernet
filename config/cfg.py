@@ -14,6 +14,8 @@ cfg = {
         "rand_pushes": False,
         "rand_samples": False,
         "special_crop": False,
+        "num_classes": 90,
+        "max_tag_len": 128
 
     }
 }

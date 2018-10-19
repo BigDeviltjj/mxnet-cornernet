@@ -5,7 +5,28 @@ import sys
 from config.cfg import cfg
 import logging
 from dataset.iterator import DetRecordIter
+import numpy as np
 DEBUG = True
+COCO2014 = False
+if COCO2014:
+  coco_dict =dict(zip(range(82), ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
+               'bus', 'train', 'truck', 'boat', 'traffic light',
+               'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
+               'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear',
+               'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie',
+               'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+               'kite', 'baseball bat', 'baseball glove', 'skateboard',
+               'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
+               'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+               'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza',
+               'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
+               'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote',
+               'keyboard', 'cell phone', 'microwave', 'oven', 'toaster',
+               'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
+               'teddy bear', 'hair drier', 'toothbrush']))
+else:
+  coco_dict = {1: 'person', 2: 'bicycle', 3: 'car', 4: 'motorcycle', 5: 'airplane', 6: 'bus', 7: 'train', 8: 'truck', 9: 'boat', 10: 'traffic light', 11: 'fire hydrant', 13: 'stop sign', 14: 'parking meter', 15: 'bench', 16: 'bird', 17: 'cat', 18: 'dog', 19: 'horse', 20: 'sheep', 21: 'cow', 22: 'elephant', 23: 'bear', 24: 'zebra', 25: 'giraffe', 27: 'backpack', 28: 'umbrella', 31: 'handbag', 32: 'tie', 33: 'suitcase', 34: 'frisbee', 35: 'skis', 36: 'snowboard', 37: 'sports ball', 38: 'kite', 39: 'baseball bat', 40: 'baseball glove', 41: 'skateboard', 42: 'surfboard', 43: 'tennis racket', 44: 'bottle', 46: 'wine glass', 47: 'cup', 48: 'fork', 49: 'knife', 50: 'spoon', 51: 'bowl', 52: 'banana', 53: 'apple', 54: 'sandwich', 55: 'orange', 56: 'broccoli', 57: 'carrot', 58: 'hot dog', 59: 'pizza', 60: 'donut', 61: 'cake', 62: 'chair', 63: 'couch', 64: 'potted plant', 65: 'bed', 67: 'dining table', 70: 'toilet', 72: 'tv', 73: 'laptop', 74: 'mouse', 75: 'remote', 76: 'keyboard', 77: 'cell phone', 78: 'microwave', 79: 'oven', 80: 'toaster', 81: 'sink', 82: 'refrigerator', 84: 'book', 85: 'clock', 86: 'vase', 87: 'scissors', 88: 'teddy bear', 89: 'hair drier', 90: 'toothbrush'}
+
 import time
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a Single-shot detection network')
@@ -147,16 +168,30 @@ def train_net(args):
                                label_pad_width = args.label_width, path_imglist = args.train_list)
     train_iter.reset()
     it = train_iter.next()
-    print(it.data)
     if DEBUG:
         import cv2
-        print(it.data[0].asnumpy().shape)
         imgs = it.data[0].asnumpy().transpose(0,2,3,1)
         imgs *=70
         imgs += 110
+        i = 0
+        labels = it.label[0].asnumpy()
         for img in imgs:
-            cv2.imwrite("img.png",img[:,:,::-1])
-            time.sleep(3)
+            img = img[:,:,::-1].copy()
+            label = labels[i]
+            keep = np.where(label[:,0] > 0)[0]
+            label = label[keep,:]
+            #print('label',label,label.shape)
+            for l in label:
+              l[1:5:2] *= img.shape[1]
+              l[2:6:2] *= img.shape[0]
+              l = l.astype(int)
+              bbox = tuple(l[1:])
+              #print(img.shape)
+              cv2.rectangle(img, (bbox[0],bbox[1]), (bbox[2],bbox[3]), (255,0,0), 1)
+              cv2.putText(img, str(coco_dict[l[0]]),bbox[:2],cv2.FONT_HERSHEY_COMPLEX,1,(0,0,255),2)
+            #print('label: ',label) 
+            cv2.imwrite("images/img+{}.png".format(i),img)
+            i += 1
 
 if __name__ == '__main__':
     args = parse_args()
