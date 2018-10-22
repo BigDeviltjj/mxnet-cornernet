@@ -77,7 +77,9 @@ class DetRecordIter(mx.io.DataIter):
         label = self._batch.label[0].asnumpy()
         label = label[:, self.label_start:self.label_end].reshape(
             (self.batch_size, self.max_objects, self.label_object_width))
-        label = np.where(label>-1,label * np.array((1,)+self.data_shape[1:] * 2)[np.newaxis,np.newaxis,:],label)
+        image_size = np.array([1,self.data_shape[1]-1,self.data_shape[2]-1,self.data_shape[1]-1,self.data_shape[2]-1])
+        label = np.where(label>-1,label * image_size[np.newaxis,np.newaxis,:],label)
+#        label = np.where(label>-1,label * np.array((1,)+self.data_shape[1:] * 2)[np.newaxis,np.newaxis,:],label)
 
         train_params = self.train_params
         tl_heatmaps = np.zeros((self.batch_size, train_params['num_classes'],train_params['output_sizes'][0], train_params['output_sizes'][1]))
@@ -94,6 +96,7 @@ class DetRecordIter(mx.io.DataIter):
         for b, single_label in enumerate(label):
           keep = np.where(single_label[:,0]>-1)[0]
           gt_boxes = single_label[keep]
+          print("batch {}, box: ".format(b),gt_boxes)
           for gt_box in gt_boxes:
 
             box = gt_box[1:5]
@@ -135,8 +138,6 @@ class DetRecordIter(mx.io.DataIter):
         self._batch.label = []
         for l in self.label_names:
           self._batch.label.append(mx.nd.array(eval(l)))
-        import pdb
-        pdb.set_trace()
         return True
             
         

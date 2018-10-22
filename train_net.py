@@ -5,6 +5,7 @@ import sys
 from config.cfg import cfg
 import logging
 from dataset.iterator import DetRecordIter
+from symbols.cornernet import CornerNet
 import numpy as np
 DEBUG = True
 COCO2014 = False
@@ -162,6 +163,7 @@ def train_net(args):
     if prefix.endswith('_'):
         prefix += '_' +str(data_shape[1])
 
+    sym = CornerNet(is_train = False,cfg['network'])
     mean_pixels = [args.mean_r,args.mean_g,args.mean_b]
 
     train_iter = DetRecordIter(cfg['train'], args.train_path, args.batch_size, data_shape, mean_pixels = mean_pixels,
@@ -174,22 +176,41 @@ def train_net(args):
         imgs *=70
         imgs += 110
         i = 0
-        labels = it.label[0].asnumpy()
+        labels = it.label
+        r = 511 / 128
         for img in imgs:
             img = img[:,:,::-1].copy()
-            label = labels[i]
-            keep = np.where(label[:,0] > 0)[0]
-            label = label[keep,:]
-            #print('label',label,label.shape)
-            for l in label:
-              l[1:5:2] *= img.shape[1]
-              l[2:6:2] *= img.shape[0]
-              l = l.astype(int)
-              bbox = tuple(l[1:])
-              #print(img.shape)
-              cv2.rectangle(img, (bbox[0],bbox[1]), (bbox[2],bbox[3]), (255,0,0), 1)
-              cv2.putText(img, str(coco_dict[l[0]]),bbox[:2],cv2.FONT_HERSHEY_COMPLEX,1,(0,0,255),2)
-            #print('label: ',label) 
+            tl_heat = labels[0][i].asnumpy()
+            br_heat = labels[1][i].asnumpy()
+            tl_reg = labels[2][i].asnumpy()
+            br_reg = labels[3][i].asnumpy()
+            tl_em = labels[4][i].asnumpy()
+            br_em = labels[5][i].asnumpy()
+            mask = labels[6][i].asnumpy()
+            keep = np.where(mask == 1)[0]
+            tl_reg = tl_reg[keep]
+            br_reg = br_reg[keep]
+            tl_em = tl_em[keep]
+            br_em = br_em[keep]
+            tl_h = (np.sum(tl_heat, axis = 0) * 255).astype(np.uint8)
+            br_h = (np.sum(br_heat, axis = 0) * 255).astype(np.uint8)
+            heat = cv2.resize((tl_h+br_h),(511,511))
+            
+            img += heat[:,:,np.newaxis]
+            
+            for tlr, brr, tle, bre in zip(tl_reg, br_reg, tl_em, br_em):
+              tl = np.array([tle%128, tle/128],dtype = np.int)
+              br = np.array([bre%128, bre/128],dtype = np.int)
+              cls1 = np.where(tl_heat[:,tl[1],tl[0]] == 1.)[0]
+              cls2 = np.where(br_heat[:,br[1],br[0]] == 1.)[0]
+              assert cls1 == cls2, "cls not equal!! cls1: {}, cls2: {}".format(cls1,cls2)
+              tl1 = tuple((tl * r).astype(int))
+              br1 = tuple((br * r).astype(int))
+              tl2 = tuple(((tl+tlr) * r).astype(int))
+              br2 = tuple(((br+brr) * r).astype(int))
+              cv2.rectangle(img, tl1, br1, (0,0,255), 1)
+              cv2.rectangle(img, tl2, br2, (255,0,0), 1)
+              cv2.putText(img, str(coco_dict[cls1[0]+ 1]),tl2,cv2.FONT_HERSHEY_COMPLEX,1,(0,0,255),2)
             cv2.imwrite("images/img+{}.png".format(i),img)
             i += 1
 
