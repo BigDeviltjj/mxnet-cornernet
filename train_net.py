@@ -163,10 +163,10 @@ def train_net(args):
     if prefix.endswith('_'):
         prefix += '_' +str(data_shape[1])
 
-    sym = CornerNet(is_train = False,cfg['network'])
+    sym = CornerNet(is_train = True,cfg['network'])
     mean_pixels = [args.mean_r,args.mean_g,args.mean_b]
 
-    train_iter = DetRecordIter(cfg['train'], args.train_path, args.batch_size, data_shape, mean_pixels = mean_pixels,
+    train_iter = DetRecordIter(cfg['network'], args.train_path, args.batch_size, data_shape, mean_pixels = mean_pixels,
                                label_pad_width = args.label_width, path_imglist = args.train_list)
     train_iter.reset()
     it = train_iter.next()

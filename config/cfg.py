@@ -1,5 +1,5 @@
 cfg = {
-    'train':
+    'network':
     {
         'batch_size':1,
         'output_sizes':[128,128],
@@ -14,7 +14,7 @@ cfg = {
         "rand_pushes": False,
         "rand_samples": False,
         "special_crop": False,
-        "num_classes": 90,
+        "num_classes": 80,
         "max_tag_len": 128
 
     }

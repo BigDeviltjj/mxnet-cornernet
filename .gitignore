@@ -1,5 +1,5 @@
 *.swp
 /data/
 /.vscode/
-
+__pycache__/
 

@@ -86,8 +86,8 @@ class DetRecordIter(mx.io.DataIter):
         br_heatmaps = np.zeros((self.batch_size, train_params['num_classes'],train_params['output_sizes'][0], train_params['output_sizes'][1]))
         tl_regrs = np.zeros((self.batch_size, train_params['max_tag_len'],2))
         br_regrs = np.zeros((self.batch_size, train_params['max_tag_len'],2))
-        tl_tags = np.zeros((self.batch_size, train_params['max_tag_len']))
-        br_tags = np.zeros((self.batch_size, train_params['max_tag_len']))
+        tl_tags = np.zeros((2 , self.batch_size * train_params['max_tag_len']))
+        br_tags = np.zeros((2, tself.batch_size * rain_params['max_tag_len']))
         
         tag_masks = np.zeros((self.batch_size, train_params['max_tag_len']))
         tag_lens = np.zeros((self.batch_size,), dtype = np.int64)
@@ -123,8 +123,10 @@ class DetRecordIter(mx.io.DataIter):
             tag_ind = tag_lens[b]
             tl_regrs[b,tag_ind, :] = reg_label[:2]
             br_regrs[b,tag_ind, :] = reg_label[2:]
-            tl_tags[b, tag_ind] = feat_box_quanti[1] * train_params['output_sizes'][1] +feat_box_quanti[0] #xtl  can be seen as a way of encode
-            br_tags[b, tag_ind] = feat_box_quanti[3] * train_params['output_sizes'][1] +feat_box_quanti[2] #xtl  can be seen as a way of encode
+            tl_tags[0,b * tag_ind] = b
+            tl_tags[1,b * tag_ind] = feat_box_quanti[1] * train_params['output_sizes'][1] +feat_box_quanti[0] #xtl  can be seen as a way of encode
+            br_tags[0, b * tag_ind] = b
+            br_tags[1, b * tag_ind] = feat_box_quanti[3] * train_params['output_sizes'][1] +feat_box_quanti[2] #xtl  can be seen as a way of encode
             tag_lens[b] += 1
           
         for b in range(self.batch_size):
