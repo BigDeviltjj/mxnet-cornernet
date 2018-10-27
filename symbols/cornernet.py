@@ -92,16 +92,26 @@ def corner_cnv(cnv, name, is_train):
     return corner
     
 def transpose_and_gather_feature(feat, ind, cfgs):
-    feat = feat.transpose(0,2,3,1)
+    feat = feat.transpose((0,2,3,1))
     feat = mx.sym.reshape(data = feat, shape = (0,-3,0))
-    feat = mx.sym.gather_nd(feat, ind)
-    feat = feat.reshape(data = feat, shape = (cfgs['batch_size'],cfgs['max_tag_len'], -1)
+    ind_1 = ind.reshape(-1)
+    ind_0 = mx.sym.arange(cfgs['batch_size'])
+    ind_0 = mx.sym.transpose(mx.sym.tile(ind_0, (cfgs['max_tag_len'], 1))).reshape(-1)
+    index = mx.sym.stack(ind_0, ind_1)
+    feat = mx.sym.gather_nd(feat, index)
+    feat = feat.reshape((cfgs['batch_size'],cfgs['max_tag_len'], -1))
     return feat
 
 def CornerNet(is_train, cfgs):
     data = mx.sym.Variable('data')
-    tl_inds = mx.sym.Variable('tl_ind')
-    br_inds = mx.sym.Variable('br_ind')
+    tl_inds = mx.sym.Variable('tl_inds')
+    br_inds = mx.sym.Variable('br_inds')
+    tl_heatmaps = mx.sym.Variable('tl_heatmaps')
+    br_heatmaps = mx.sym.Variable('br_heatmaps')
+    tl_regrs = mx.sym.Variable('tl_regrs')
+    br_regrs = mx.sym.Variable('br_regrs')
+    tag_masks = mx.sym.Variable('tag_masks')
+
     inter = pre(data, is_train)
     
     dims = [256, 256, 384, 384, 384, 512]
@@ -134,9 +144,24 @@ def CornerNet(is_train, cfgs):
 
     tl_tag = transpose_and_gather_feature(tl_tag_out, tl_inds, cfgs)
     br_tag = transpose_and_gather_feature(br_tag_out, br_inds, cfgs)
-    tl_regr = transpose_and_gather_feature(tl_regr_out, tl_inds, cfgs)
-    br_regr = transpose_and_gather_feature(br_regr_out, br_inds, cfgs)
-    return mx.sym.Group([tl_cnv,br_cnv])
+    tl_regr = transpose_and_gather_feature(tl_regrs_out, tl_inds, cfgs)
+    br_regr = transpose_and_gather_feature(br_regrs_out, br_inds, cfgs)
+
+#####remove##########
+    tag_masks = mx.sym.expand_dims(tag_masks,axis = 2)
+    tl_heatmap_loss = mx.sym.smooth_l1(tl_heatmaps - tl_heat_out,scalar = 1)
+    br_heatmap_loss = mx.sym.smooth_l1(br_heatmaps - br_heat_out,scalar = 1)
+    tl_reg_loss = mx.sym.broadcast_mul(tag_masks , mx.sym.smooth_l1(tl_regrs - tl_regr,scalar = 1))
+    br_reg_loss = mx.sym.broadcast_mul(tag_masks , mx.sym.smooth_l1(br_regrs - br_regr,scalar = 1))
+    tl_tag_loss = mx.sym.broadcast_mul(tag_masks , mx.sym.smooth_l1(tl_inds - tl_tag,scalar = 1))
+    br_tag_loss = mx.sym.broadcast_mul(tag_masks , mx.sym.smooth_l1(br_inds - br_tag,scalar = 1))
+
+    tl_heatmap_loss = mx.symbol.MakeLoss(tl_heatmap_loss)
+    br_heatmap_loss = mx.symbol.MakeLoss(br_heatmap_loss)
+    tl_reg_loss = mx.symbol.MakeLoss(tl_reg_loss)
+    br_reg_loss = mx.symbol.MakeLoss(br_reg_loss)
+
+    return mx.sym.Group([tl_heatmap_loss, br_heatmap_loss, tl_reg_loss, br_reg_loss,tl_regr, tl_regrs_out])
 
 
 if __name__ == '__main__':

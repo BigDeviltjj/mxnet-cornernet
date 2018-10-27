@@ -1,7 +1,7 @@
 cfg = {
     'network':
     {
-        'batch_size':1,
+        'batch_size':2,
         'output_sizes':[128,128],
         'boder': 128,
         'lighting': True,
