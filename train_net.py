@@ -1,3 +1,4 @@
+from __future__ import division
 import argparse
 import mxnet as mx
 import os

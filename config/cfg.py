@@ -15,7 +15,10 @@ cfg = {
         "rand_samples": False,
         "special_crop": False,
         "num_classes": 80,
-        "max_tag_len": 128
+        "max_tag_len": 128,
+	"pull_weight": 0.1,
+	"push_weight": 0.1,
+	"regr_weight": 0.1
 
     }
 }

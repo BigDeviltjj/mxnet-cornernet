@@ -1,10 +1,13 @@
+from __future__ import division
 import mxnet as mx
 import numpy as np
 import sys
-sys.path.insert(0,'../')
-print(__file__)
-print(sys.path)
+import os
+sys.path.insert(0,os.path.join(os.path.abspath('./'),'./'))
+#print(__file__)
+#print(sys.path)
 from py_operator.corner_pooling import *
+from config.cfg import cfg
 
 DEBUG = True
 if DEBUG:
@@ -102,6 +105,80 @@ def transpose_and_gather_feature(feat, ind, cfgs):
     feat = feat.reshape((cfgs['batch_size'],cfgs['max_tag_len'], -1))
     return feat
 
+def focal_loss(pred, gt):
+    eps = 1e-5
+    neg_weights = mx.sym.pow(1 - gt, 4)
+    #neg_weights = mx.sym.broadcast_power(1 - gt + eps, mx.sym.full(shape=(1,),val=4))
+
+    #loss = 0
+    zero = mx.sym.zeros_like(gt)
+    pos_loss = mx.sym.where(gt == 1., mx.sym.log(pred + eps) * mx.sym.pow(1-pred, 2), zero)
+    neg_loss = mx.sym.where(gt < 1. , mx.sym.log(1 - pred + eps) * mx.sym.pow(pred+eps, 2) * neg_weights, zero)
+
+    num_pos = (gt == 1.).sum()
+    loss = mx.sym.where(num_pos == 0., -neg_loss.sum(), -(pos_loss.sum() + neg_loss.sum()) / num_pos)
+    return loss
+
+def ae_loss(tag0, tag1, mask):
+    num = mx.sym.sum(mask, axis = 1,keepdims = True)
+    tag0 = tag0.squeeze(axis = -1)
+    tag1 = tag1.squeeze(axis = -1)
+
+    tag_mean = (tag0 + tag1) / 2
+
+    tag0 = mx.sym.broadcast_div(mx.sym.pow(tag0 - tag_mean, 2) , (num + 1e-4))
+    tag0 = mx.sym.broadcast_mul(tag0, mask)
+    tag0 = tag0.sum()
+    tag1 = mx.sym.broadcast_div(mx.sym.pow(tag1 - tag_mean, 2) , (num + 1e-4))
+    tag1 = mx.sym.broadcast_mul(tag1, mask)
+    tag1 = tag1.sum()
+    pull = tag0 + tag1
+
+    push_mask = mx.sym.broadcast_add(mx.sym.expand_dims(mask, axis = 1), mx.sym.expand_dims(mask, axis = 2))
+
+    push_mask = push_mask == 2
+    num = mx.sym.expand_dims(num, axis = 2)
+    num2 = (num - 1) * num
+    dist = mx.sym.broadcast_sub(mx.sym.expand_dims(tag_mean, 1) , mx.sym.expand_dims(tag_mean,2))
+    dist = 1 - mx.sym.abs(dist)
+    dist = mx.sym.Activation(data = dist, act_type = 'relu')
+    dist = mx.sym.broadcast_sub(dist, 1/(num + 1e-4))
+    dist = mx.sym.broadcast_div(dist, num2 + 1e-4)
+    dist = mx.sym.broadcast_mul(dist, push_mask)
+    push = dist.sum()
+    return pull, push
+
+def regr_loss(regr, gt_regr, mask):
+    num = mask.sum()
+    mask = mask.expand_dims(axis = 2).broadcast_like(gt_regr)
+    loss = mask * mx.sym.smooth_l1(data=(gt_regr - regr), scalar = 1.)
+    loss = loss.sum() / (num + 1e-4)
+    return loss
+
+def AELoss(tl_heat_pred, br_heat_pred,
+           tl_tag_pred, br_tag_pred,
+	   tl_regr_pred, br_regr_pred,
+	   tl_heat_gt, br_heat_gt,
+	   tl_regr_gt, br_regr_gt,
+           masks, cfgs):
+    tl_heat_pred = mx.symbol.sigmoid(tl_heat_pred)
+    br_heat_pred = mx.symbol.sigmoid(br_heat_pred)
+
+    
+    tl_heat_loss = focal_loss(tl_heat_pred, tl_heat_gt)
+    br_heat_loss = focal_loss(br_heat_pred, br_heat_gt)
+
+    pull_loss, push_loss = ae_loss(tl_tag_pred, br_tag_pred, masks)
+    pull_loss = pull_loss * cfgs['pull_weight']
+    push_loss = push_loss * cfgs['push_weight']
+
+    regr_l = regr_loss(tl_regr_pred, tl_regr_gt, masks) + regr_loss(br_regr_pred, br_regr_gt, masks)
+    regr_l = regr_l * cfgs['regr_weight']
+    loss = tl_heat_loss + br_heat_loss + pull_loss + push_loss + regr_l
+    return loss
+
+
+
 def CornerNet(is_train, cfgs):
     data = mx.sym.Variable('data')
     tl_inds = mx.sym.Variable('tl_inds')
@@ -147,37 +224,40 @@ def CornerNet(is_train, cfgs):
     tl_regr = transpose_and_gather_feature(tl_regrs_out, tl_inds, cfgs)
     br_regr = transpose_and_gather_feature(br_regrs_out, br_inds, cfgs)
 
+    loss = AELoss(tl_heat_out, br_heat_out, tl_tag, br_tag, tl_regr, br_regr,
+           tl_heatmaps, br_heatmaps, tl_regrs, br_regrs, tag_masks, cfgs)
+    loss = mx.sym.MakeLoss(loss)
 #####remove##########
-    tag_masks = mx.sym.expand_dims(tag_masks,axis = 2)
-    tl_heatmap_loss = mx.sym.smooth_l1(tl_heatmaps - tl_heat_out,scalar = 1)
-    br_heatmap_loss = mx.sym.smooth_l1(br_heatmaps - br_heat_out,scalar = 1)
-    tl_reg_loss = mx.sym.broadcast_mul(tag_masks , mx.sym.smooth_l1(tl_regrs - tl_regr,scalar = 1))
-    br_reg_loss = mx.sym.broadcast_mul(tag_masks , mx.sym.smooth_l1(br_regrs - br_regr,scalar = 1))
-    tl_tag_loss = mx.sym.broadcast_mul(tag_masks , mx.sym.smooth_l1(tl_inds - tl_tag,scalar = 1))
-    br_tag_loss = mx.sym.broadcast_mul(tag_masks , mx.sym.smooth_l1(br_inds - br_tag,scalar = 1))
+#    tag_masks = mx.sym.expand_dims(tag_masks,axis = 2)
+#    tl_heatmap_loss = mx.sym.smooth_l1(tl_heatmaps - tl_heat_out,scalar = 1)
+#    br_heatmap_loss = mx.sym.smooth_l1(br_heatmaps - br_heat_out,scalar = 1)
+#    tl_reg_loss = mx.sym.broadcast_mul(tag_masks , mx.sym.smooth_l1(tl_regrs - tl_regr,scalar = 1))
+#    br_reg_loss = mx.sym.broadcast_mul(tag_masks , mx.sym.smooth_l1(br_regrs - br_regr,scalar = 1))
+#    tl_tag_loss = mx.sym.broadcast_mul(tag_masks , mx.sym.smooth_l1(tl_inds - tl_tag,scalar = 1))
+#    br_tag_loss = mx.sym.broadcast_mul(tag_masks , mx.sym.smooth_l1(br_inds - br_tag,scalar = 1))
+#
+#    tl_heatmap_loss = mx.symbol.MakeLoss(tl_heatmap_loss)
+#    br_heatmap_loss = mx.symbol.MakeLoss(br_heatmap_loss)
+#    tl_reg_loss = mx.symbol.MakeLoss(tl_reg_loss)
+#    br_reg_loss = mx.symbol.MakeLoss(br_reg_loss)
 
-    tl_heatmap_loss = mx.symbol.MakeLoss(tl_heatmap_loss)
-    br_heatmap_loss = mx.symbol.MakeLoss(br_heatmap_loss)
-    tl_reg_loss = mx.symbol.MakeLoss(tl_reg_loss)
-    br_reg_loss = mx.symbol.MakeLoss(br_reg_loss)
-
-    return mx.sym.Group([tl_heatmap_loss, br_heatmap_loss, tl_reg_loss, br_reg_loss,tl_regr, tl_regrs_out])
+    return loss#mx.sym.Group([tl_heatmap_loss, br_heatmap_loss, tl_reg_loss, br_reg_loss,tl_regr, tl_regrs_out])
 
 
 if __name__ == '__main__':
     if DEBUG:
-        out = CornerNet(True, None)
-        out = mx.sym.MakeLoss(out[0])
-        mod = mx.mod.Module(symbol = out, context = mx.gpu(3), data_names=['data'],label_names=None)
+        out = CornerNet(True, cfg['network'])
+        net_visualization(network='', num_classes = 80, train=True, output_dir = './', print_net = True, net = out)
+        mod = mx.mod.Module(symbol = out, context = mx.gpu(1), data_names=['data'],label_names=None)
         
-        mod.bind(data_shapes=[('data',(32,3,256,256))])
+        mod.bind(data_shapes=[('data',(32,3,511,511))])
 # initialize parameters by uniform random numbers
-        mod.init_params(initializer=mx.init.Uniform(scale=.1))
+        mod.init_params()
         mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.1), ))
 # use accuracy as the metric
         metric = mx.metric.create('acc')
         inputs = np.random.randn(32,3,256,256)
         mod.forward(mx.io.DataBatch(data=[mx.nd.array(inputs)]),is_train = True)
+        print(mod.get_outputs)
 
 
-        net_visualization(network='', num_classes = 80, train=True, output_dir = './', print_net = True, net = out)
