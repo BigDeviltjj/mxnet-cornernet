@@ -34,6 +34,7 @@ class DetRecordIter(mx.io.DataIter):
         self.train_params = train_params
         self.data_shape = data_shape
         self.provide_label = None
+        self.data_names = ['data']
         self.label_names = ['tl_heatmaps','br_heatmaps','tl_regrs','br_regrs','tl_inds','br_inds', 'tag_masks']
         self._get_batch()
         if not self.provide_label:
@@ -99,7 +100,6 @@ class DetRecordIter(mx.io.DataIter):
         for b, single_label in enumerate(label):
             keep = np.where(single_label[:,0]>-1)[0]
             gt_boxes = single_label[keep]
-            print("batch {}, box: ".format(b),gt_boxes)
             for gt_box in gt_boxes:
 
                 box = gt_box[1:5]
