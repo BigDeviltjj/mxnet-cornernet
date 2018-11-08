@@ -1,5 +1,6 @@
 import numpy as np
 import mxnet as mx
+from .nms.nms import py_nms
 
 def _nms(heat, kernel = 3):
     pad = (kernel - 1)//2
@@ -19,36 +20,12 @@ def _topk(scores, K = 20):
     topk_xs = (topk_inds%w).astype(int)
     return topk_scores, topk_inds, topk_clses, topk_ys, topk_xs
 
-def gather_numpy(x, dim, index):
-    """
-    Gathers values along an axis specified by dim.
-    For a 3-D tensor the output is specified by:
-        out[i][j][k] = input[index[i][j][k]][j][k]  # if dim == 0
-        out[i][j][k] = input[i][index[i][j][k]][k]  # if dim == 1
-        out[i][j][k] = input[i][j][index[i][j][k]]  # if dim == 2
-
-    :param dim: The axis along which to index
-    :param index: A tensor of indices of elements to gather
-    :return: tensor of gathered values
-    """
-    idx_xsection_shape = index.shape[:dim] + index.shape[dim + 1:]
-    self_xsection_shape = x.shape[:dim] + x.shape[dim + 1:]
-    if idx_xsection_shape != self_xsection_shape:
-        raise ValueError("Except for dimension " + str(dim) +
-                         ", all dimensions of index and self should be the same size")
-    if index.dtype != np.dtype('int_'):
-        raise TypeError("The values of index must be integers")
-    data_swaped = np.swapaxes(x, 0, dim)
-    index_swaped = np.swapaxes(index, 0, dim)
-    gathered = np.choose(index_swaped, data_swaped)
-    return np.swapaxes(gathered, 0, dim)
 
 def _gather_feat(feat, ind):
     b, l = ind.shape
     ind0 = np.repeat(np.arange(b),l)
     ind1 = ind.reshape((-1))
     index = np.stack([ind0,ind1])
-    print(feat.shape)
     feat= feat[ind0,ind1,:]
     feat = feat.reshape(b,l,-1)
 #    ind = np.tile(ind[:,:,None],(1,1,dim))
@@ -59,15 +36,27 @@ def _transpose_and_gather_feat(feat, ind):
     feat = _gather_feat(feat, ind)
     return feat
 
+def _rescale_dets(detections, ratios, borders, sizes):
+    xs, ys = detections[..., 0:4:2], detections[..., 1:4:2]
+    xs    /= ratios[:, 1][:,  None]
+    ys    /= ratios[:, 0][:,  None]
+    xs    -= borders[:, 2][:,  None]
+    ys    -= borders[:, 0][:,  None]
+    np.clip(xs, 0, sizes[:, 1][:,  None], out=xs)
+    np.clip(ys, 0, sizes[:, 0][:,  None], out=ys)
+
 def decode(tl_heat, br_heat,
            tl_tag, br_tag,
            tl_regr, br_regr,
+           info, scale,
            K = 100, kernel = 3,
            ae_threshold = 0.5,
+           nms_threshold = 0.5,
+           max_per_image = 100,
            num_dets = 1000):
 
-    import pdb
-    pdb.set_trace()
+    info = info[0]
+
     tl_heat = mx.nd.sigmoid(tl_heat)
     br_heat = mx.nd.sigmoid(br_heat)
 
@@ -81,6 +70,7 @@ def decode(tl_heat, br_heat,
     tl_regr = tl_regr.asnumpy()
     br_regr =  br_regr.asnumpy()
     b, c, h, w = tl_heat.shape
+    assert b == 1,'only support one image'
     
     tl_scores, tl_inds, tl_clses, tl_ys, tl_xs = _topk(tl_heat, K=K)
     br_scores, br_inds, br_clses, br_ys, br_xs = _topk(br_heat, K=K)
@@ -124,8 +114,6 @@ def decode(tl_heat, br_heat,
     scores = scores.reshape(b,-1)
 
 
-    import pdb
-    pdb.set_trace()
     inds = scores.argsort(axis = 1)[:,-num_dets:][:,::-1]
     scores.sort(axis = 1)
     scores = scores[:,-num_dets:][:,::-1]
@@ -140,9 +128,34 @@ def decode(tl_heat, br_heat,
     br_scores = br_scores.reshape((b, -1, 1))
     br_scores = _gather_feat(br_scores, inds)
 
-    print(bboxes.shape)
-    print(scores.shape)
-    print(tl_scores.shape)
-    print(clses.shape)
     detections = np.concatenate([bboxes, scores[:,:,None], tl_scores, br_scores, clses], axis = 2)
-    return detections
+    dets = detections.reshape((-1,8))
+
+    borders = info[:, :4]
+    resizes = info[:,4:6]
+    ratios = info[:,6:]
+    _rescale_dets(dets, ratios, borders, resizes) 
+    dets[:,:4] /= scale
+
+    classes = dets[:,-1]
+    keep_inds = dets[:,-4] > -1
+    dets = dets[keep_inds]
+    classes = classes[keep_inds]
+    ret_bboxes = {}
+    for j in range(c):
+        keep_inds = (classes == j)
+        ret_bboxes[j+1] = dets[keep_inds,:7].astype(np.float32)
+
+        keep = py_nms(ret_bboxes[j+1], nms_threshold)
+        ret_bboxes[j+1] = ret_bboxes[j+1][keep,:5]
+    scores = np.hstack([ret_bboxes[j][:,-1]
+                        for j in range(1,c+1)])
+
+    if len(scores) > max_per_image:
+        kth = len(scores) - max_per_image
+        thresh = np.partition(scores,kth)[kth]
+        for j in range(1, c+1):
+            keep = ret_bboxes[j][:,-1] >= thresh
+            ret_bboxes[j] = ret_bboxes[j][keep]
+
+    return ret_bboxes

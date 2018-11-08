@@ -2,4 +2,8 @@
 /data/
 /.vscode/
 __pycache__/
-
+output/
+*.pyc
+__pycache__/
+*.so
+build/

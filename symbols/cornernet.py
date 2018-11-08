@@ -26,7 +26,7 @@ def residual(inputs, out_dim, stride, is_train, name, revr = False):
     conv1 = conv(inputs, 3, out_dim, stride = stride, is_train = is_train, name = name+'_res1')
     conv2 = mx.symbol.Convolution(data = conv1, num_filter = out_dim, kernel = (3,3), pad = (1, 1), stride = (1, 1), no_bias = True, name = name + '_res2_conv')
     bn2 = mx.symbol.BatchNorm(name = name +'_res2_bn', data = conv2, use_global_stats = not is_train, fix_gamma = False)
-    relu2 = mx.symbol.Activation(name = name + '_res2_relu', data = bn2, act_type = 'relu') 
+    relu2 = bn2#mx.symbol.Activation(name = name + '_res2_relu', data = bn2, act_type = 'relu') 
 
     if stride == 1 and not revr:
         skip = inputs
@@ -72,7 +72,7 @@ def Hourglass(inputs, n, dims, modules, is_train, stage = 0):
     next_dim = dims[1]
 
     up1 = make_layer(inputs, curr_dim, curr_mod, 1, is_train, residual, name = 'up_'+str(stage)+'_1'+'_'+str(n))
-    low1 = make_layer(up1, next_dim, curr_mod, 2, is_train, residual, name = 'low_'+str(stage)+'_1'+'_'+str(n))
+    low1 = make_layer(inputs, next_dim, curr_mod, 2, is_train, residual, name = 'low_'+str(stage)+'_1'+'_'+str(n))
     low2 = Hourglass(low1, n - 1, dims = dims[1:], modules = modules[1:], is_train = is_train,stage = stage) if n > 1 else \
         make_layer(low1, next_dim, next_mod, 1, is_train, residual, name = 'low_'+str(stage)+'_2'+'_'+str(n))
     low3 = make_layer_rever(low2, next_dim, curr_dim, curr_mod, 1, is_train, residual, name = 'low_'+str(stage)+'_3'+ '_'+str(n))
@@ -184,13 +184,14 @@ def AELoss(tl_heat_pred, br_heat_pred,
 
 def CornerNet(is_train, cfgs):
     data = mx.sym.Variable('data')
-    tl_inds = mx.sym.Variable('tl_inds')
-    br_inds = mx.sym.Variable('br_inds')
-    tl_heatmaps = mx.sym.Variable('tl_heatmaps')
-    br_heatmaps = mx.sym.Variable('br_heatmaps')
-    tl_regrs = mx.sym.Variable('tl_regrs')
-    br_regrs = mx.sym.Variable('br_regrs')
-    tag_masks = mx.sym.Variable('tag_masks')
+    if is_train:
+        tl_inds = mx.sym.Variable('tl_inds')
+        br_inds = mx.sym.Variable('br_inds')
+        tl_heatmaps = mx.sym.Variable('tl_heatmaps')
+        br_heatmaps = mx.sym.Variable('br_heatmaps')
+        tl_regrs = mx.sym.Variable('tl_regrs')
+        br_regrs = mx.sym.Variable('br_regrs')
+        tag_masks = mx.sym.Variable('tag_masks')
 
     inter = pre(data, is_train)
     
@@ -223,12 +224,13 @@ def CornerNet(is_train, cfgs):
     br_regrs_out = mx.symbol.Convolution(data = br_regrs1, kernel = (1, 1), num_filter = 2, pad = (0, 0), stride = (1, 1), no_bias = False, name = 'br_regrs_0_1')
 
 
-    tl_tag = transpose_and_gather_feature(tl_tag_out, tl_inds, cfgs)
-    br_tag = transpose_and_gather_feature(br_tag_out, br_inds, cfgs)
-    tl_regr = transpose_and_gather_feature(tl_regrs_out, tl_inds, cfgs)
-    br_regr = transpose_and_gather_feature(br_regrs_out, br_inds, cfgs)
-
-    loss0 = AELoss(tl_heat_out, br_heat_out, tl_tag, br_tag, tl_regr, br_regr,tl_heatmaps, br_heatmaps, tl_regrs, br_regrs, tag_masks, cfgs)
+    if is_train:
+        tl_tag = transpose_and_gather_feature(tl_tag_out, tl_inds, cfgs)
+        br_tag = transpose_and_gather_feature(br_tag_out, br_inds, cfgs)
+        tl_regr = transpose_and_gather_feature(tl_regrs_out, tl_inds, cfgs)
+        br_regr = transpose_and_gather_feature(br_regrs_out, br_inds, cfgs)
+    
+        loss0 = AELoss(tl_heat_out, br_heat_out, tl_tag, br_tag, tl_regr, br_regr,tl_heatmaps, br_heatmaps, tl_regrs, br_regrs, tag_masks, cfgs)
 #inter stage
     inter = mx.symbol.Convolution(data = inter, num_filter = 256, kernel = (1,1), pad = (0, 0), stride = (1, 1), no_bias = True, name = 'inter_0_0')
     inter = mx.symbol.BatchNorm(name = 'inter_0_1', data = inter, use_global_stats = not is_train, fix_gamma = False)
@@ -263,14 +265,19 @@ def CornerNet(is_train, cfgs):
     br_regrs1 = conv(br_cnv, 3, 256, 1, is_train,name = 'br_regrs_1_0', with_bn = False)
     br_regrs_out = mx.symbol.Convolution(data = br_regrs1, kernel = (1, 1), num_filter = 2, pad = (0, 0), stride = (1, 1), no_bias = False, name = 'br_regrs_1_1')
 
-    tl_tag = transpose_and_gather_feature(tl_tag_out, tl_inds, cfgs)
-    br_tag = transpose_and_gather_feature(br_tag_out, br_inds, cfgs)
-    tl_regr = transpose_and_gather_feature(tl_regrs_out, tl_inds, cfgs)
-    br_regr = transpose_and_gather_feature(br_regrs_out, br_inds, cfgs)
-
-    loss1 = AELoss(tl_heat_out, br_heat_out, tl_tag, br_tag, tl_regr, br_regr,tl_heatmaps, br_heatmaps, tl_regrs, br_regrs, tag_masks, cfgs)
-    loss = mx.sym.MakeLoss(loss0 + loss1)
+    if is_train:
+        tl_tag = transpose_and_gather_feature(tl_tag_out, tl_inds, cfgs)
+        br_tag = transpose_and_gather_feature(br_tag_out, br_inds, cfgs)
+        tl_regr = transpose_and_gather_feature(tl_regrs_out, tl_inds, cfgs)
+        br_regr = transpose_and_gather_feature(br_regrs_out, br_inds, cfgs)
+    
+        loss1 = AELoss(tl_heat_out, br_heat_out, tl_tag, br_tag, tl_regr, br_regr,tl_heatmaps, br_heatmaps, tl_regrs, br_regrs, tag_masks, cfgs)
+        loss = mx.sym.MakeLoss(loss0 + loss1)
+        return mx.sym.Group([loss,mx.sym.BlockGrad(tl_heat_out), mx.sym.BlockGrad(br_heat_out), mx.sym.BlockGrad(tl_tag_out), mx.sym.BlockGrad(br_tag_out), mx.sym.BlockGrad(tl_regrs_out), mx.sym.BlockGrad(br_regrs_out)])#mx.sym.Group([tl_heatmap_loss, br_heatmap_loss, tl_reg_loss, br_reg_loss,tl_regr, tl_regrs_out])
+    else: 
+        return mx.sym.Group([mx.sym.BlockGrad(tl_heat_out), mx.sym.BlockGrad(br_heat_out), mx.sym.BlockGrad(tl_tag_out), mx.sym.BlockGrad(br_tag_out), mx.sym.BlockGrad(tl_regrs_out), mx.sym.BlockGrad(br_regrs_out)])#mx.sym.Group([tl_heatmap_loss, br_heatmap_loss, tl_reg_loss, br_reg_loss,tl_regr, tl_regrs_out])
 #####remove##########
+
 #    tag_masks = mx.sym.expand_dims(tag_masks,axis = 2)
 #    tl_heatmap_loss = mx.sym.smooth_l1(tl_heatmaps - tl_heat_out,scalar = 1)
 #    br_heatmap_loss = mx.sym.smooth_l1(br_heatmaps - br_heat_out,scalar = 1)
@@ -284,7 +291,6 @@ def CornerNet(is_train, cfgs):
 #    tl_reg_loss = mx.symbol.MakeLoss(tl_reg_loss)
 #    br_reg_loss = mx.symbol.MakeLoss(br_reg_loss)
 
-    return mx.sym.Group([loss,mx.sym.BlockGrad(tl_heat_out), mx.sym.BlockGrad(br_heat_out), mx.sym.BlockGrad(tl_tag_out), mx.sym.BlockGrad(br_tag_out), mx.sym.BlockGrad(tl_regrs_out), mx.sym.BlockGrad(br_regrs_out)])#mx.sym.Group([tl_heatmap_loss, br_heatmap_loss, tl_reg_loss, br_reg_loss,tl_regr, tl_regrs_out])
 
 
 if __name__ == '__main__':

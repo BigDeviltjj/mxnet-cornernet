@@ -6,7 +6,8 @@ import sys
 os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
 from config.cfg import cfg
 import logging
-from dataset.iterator import DetRecordIter
+from dataset.loader import DetRecordIter
+from dataset.load_data import load_gt_roidb, merge_roidb, filter_roidb
 from symbols.cornernet import CornerNet
 import numpy as np
 from utils.metric import CornerNetMetric
@@ -14,14 +15,16 @@ coco_dict ={0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'airplane',
 import time
 def parse_args():
     parser = argparse.ArgumentParser(description='Train cornernet detection network')
-    parser.add_argument('--train-path', dest='train_path', help='train record to use',
-                        default=os.path.join(os.getcwd(), 'data/coco', 'train.rec'), type=str)
-    parser.add_argument('--train-list', dest='train_list', help='train list to use',
-                        default=os.path.join(os.getcwd(), 'data/coco', 'train.lst'), type=str)
-    parser.add_argument('--val-path', dest='val_path', help='validation record to use',
-                        default=os.path.join(os.getcwd(), 'data/coco', 'val.rec'), type=str)
-    parser.add_argument('--val-list', dest='val_list', help='validation list to use',
-                        default=os.path.join(os.getcwd(), 'data/coco', 'val.lst'), type=str)
+    parser.add_argument('--train-set', dest='trainset', help='train set to use',
+                        default='train2014', type=str)
+    parser.add_argument('--val-set', dest='valset', help='validation record to use',
+                        default='minival2014', type=str)
+    parser.add_argument('--dataset', dest='dataset', help='dataset to use',
+                        default='coco', type=str)
+    parser.add_argument('--root-dir', dest='root_dir', help='root dir of data file to use',
+                        default='./data', type=str)
+    parser.add_argument('--image-dir', dest='image_dir', help='image dir of data file to use',
+                        default='./data/coco', type=str)
     parser.add_argument('--resume', dest='resume', type=int, default=-1,
                         help='resume training from epoch n')
     parser.add_argument('--pretrained', dest='pretrained', help='pretrained model prefix',
@@ -31,7 +34,7 @@ def parse_args():
     parser.add_argument('--prefix', dest='prefix', help='new model prefix',
                         default=os.path.join(os.getcwd(), 'output', 'exp1', 'cornerNet'), type=str)
     parser.add_argument('--gpus', dest='gpus', help='GPU devices to train with',
-                        default='0,1', type=str)
+                        default='0', type=str)
     parser.add_argument('--begin-epoch', dest='begin_epoch', help='begin epoch of training',
                         default=0, type=int)
     parser.add_argument('--end-epoch', dest='end_epoch', help='end epoch of training',
@@ -131,10 +134,6 @@ def train_net(args):
     DEBUG = args.DEBUG
     prefix = args.prefix
     num_example = 0
-    if os.path.exists(args.train_path.replace('rec','idx')):
-        with open(args.train_path.replace('rec','idx'), 'r') as f:
-            txt = f.readlines()
-        num_example = len(txt)
 
     logging.basicConfig()
     logger = logging.getLogger()
@@ -155,23 +154,39 @@ def train_net(args):
     ctx = [mx.gpu(int(i)) for i in args.gpus.split(',') if i.strip()]
     ctx = [mx.cpu()] if not ctx else ctx
     ctx_str = '(' + ','.join([str(c) for c in ctx]) + ')'
-    cfg['network']['num_ctx'] = len(ctx)
-    sym = CornerNet(is_train = True, cfgs = cfg['network'])
+    cfg['num_ctx'] = len(ctx)
+    sym = CornerNet(is_train = True, cfgs = cfg)
     mean_pixels = [args.mean_r,args.mean_g,args.mean_b]
+    trainset = args.trainset.split('+')
+    valset = args.valset.split('+')
 
     if not DEBUG:
-        train_iter = DetRecordIter(cfg['network'], args.train_path, cfg['network']['batch_size'], data_shape, mean_pixels = mean_pixels,label_pad_width = args.label_width, path_imglist = args.train_list)
-        val_iter = DetRecordIter(cfg['network'], args.val_path, cfg['network']['batch_size'], data_shape, mean_pixels = mean_pixels,label_pad_width = args.label_width, path_imglist = args.val_list)
+        train_roidbs = [load_gt_roidb(args.dataset,image_set,args.root_dir,args.image_dir) for image_set in trainset]
+        train_roidb = merge_roidb(train_roidbs)
+        train_roidb = filter_roidb(train_roidb)
+
+        val_roidbs = [load_gt_roidb(args.dataset,image_set,args.root_dir,args.image_dir) for image_set in valset]
+        val_roidb = merge_roidb(val_roidbs)
+        val_roidb = filter_roidb(val_roidb)
+
+        train_iter = DetRecordIter(train_roidb, cfg, cfg['batch_size'],True)
+        val_iter = DetRecordIter(val_roidb, cfg, cfg['batch_size'],False)
     else:
-        train_iter = DetRecordIter(cfg['network'], 'data/mini_train.rec', cfg['network']['batch_size'], data_shape, mean_pixels = mean_pixels,label_pad_width = args.label_width, path_imglist = 'data/mini_train.lst')
-        val_iter = DetRecordIter(cfg['network'], 'data/mini_train.rec', cfg['network']['batch_size'], data_shape, mean_pixels = mean_pixels,label_pad_width = args.label_width, path_imglist = 'data/mini_train.lst')
+
+        val_roidbs = [load_gt_roidb(args.dataset,image_set,args.root_dir,args.image_dir) for image_set in valset]
+        val_roidb = merge_roidb(val_roidbs)
+        val_roidb = filter_roidb(val_roidb)
+        val_roidb = val_roidb[4:8]
+        train_roidb = val_roidb.copy()
+
+        train_iter = DetRecordIter(train_roidb, cfg, cfg['batch_size'],False)
+        val_iter = DetRecordIter(val_roidb, cfg, cfg['batch_size'],False)
     train_iter.reset()
+    num_example = len(train_roidb)
+    print('totally {} images'.format(num_example))
     if DEBUG and 0:
-
-
-
-        
         import cv2
+        it = train_iter.next()
         imgs = it.data[0].asnumpy().transpose(0,2,3,1)
         imgs *=70
         imgs += 110
@@ -179,7 +194,7 @@ def train_net(args):
         labels = it.label
         r = 511 / 128
         for img in imgs:
-            img = img[:,:,::-1].copy()
+            img = img.copy()
             tl_heat = labels[0][i].asnumpy()
             br_heat = labels[1][i].asnumpy()
             tl_reg = labels[2][i].asnumpy()
@@ -227,8 +242,7 @@ def train_net(args):
             img = img.clip(0,255).astype(np.uint8)
             i += 1
 
-            # cv2.imshow("img".format(i),img)
-            # cv2.waitKey()
+            cv2.imwrite("images/image_test_{}.jpg".format(i),img)
 
         mod = mx.mod.Module(symbol = sym, context = ctx, data_names = ['data'], label_names = train_iter.label_names)
         mod.bind(data_shapes=train_iter.provide_data, label_shapes=train_iter.provide_label)
@@ -290,6 +304,8 @@ def train_net(args):
         print(train_iter.batch_size*n/(time.time() - tic))
         assert 0,'finish'
 
+    train_iter = mx.io.PrefetchingIter(train_iter)
+    val_iter = mx.io.PrefetchingIter(val_iter)
     mod.fit(train_iter,
             val_iter,
             eval_metric=valid_metric,
