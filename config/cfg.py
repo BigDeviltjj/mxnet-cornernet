@@ -6,7 +6,7 @@ cfg = {
         "max_tag_len": 128,
 	"pull_weight": 0.1,
 	"push_weight": 0.1,
-	"regr_weight": 0.1,
+	"regr_weight": 1,
         'mean' : np.array([0.40789654, 0.44719302, 0.47026115]),
         'std' : np.array([0.28863828, 0.27408164, 0.27809835]),
         'scales': np.arange(0.6,1.5,0.1),

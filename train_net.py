@@ -6,7 +6,7 @@ import sys
 os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
 from config.cfg import cfg
 import logging
-from dataset.loader import DetRecordIter
+from dataset.parallel_loader import DetRecordIter
 from dataset.load_data import load_gt_roidb, merge_roidb, filter_roidb
 from symbols.cornernet import CornerNet
 import numpy as np
@@ -28,7 +28,8 @@ def parse_args():
     parser.add_argument('--resume', dest='resume', type=int, default=-1,
                         help='resume training from epoch n')
     parser.add_argument('--pretrained', dest='pretrained', help='pretrained model prefix',
-                        default='model/pretrained_cornernet', type=str)
+                        default='', type=str)
+#                        default='model/pretrained_cornernet', type=str)
     parser.add_argument('--epoch', dest='epoch', help='epoch of pretrained model',
                         default=0, type=int)
     parser.add_argument('--prefix', dest='prefix', help='new model prefix',
@@ -176,12 +177,11 @@ def train_net(args):
         val_roidbs = [load_gt_roidb(args.dataset,image_set,args.root_dir,args.image_dir) for image_set in valset]
         val_roidb = merge_roidb(val_roidbs)
         val_roidb = filter_roidb(val_roidb)
-        val_roidb = val_roidb[4:8]
+        val_roidb = val_roidb[:100]
         train_roidb = val_roidb.copy()
 
         train_iter = DetRecordIter(train_roidb, cfg, cfg['batch_size'],False)
         val_iter = DetRecordIter(val_roidb, cfg, cfg['batch_size'],False)
-    train_iter.reset()
     num_example = len(train_roidb)
     print('totally {} images'.format(num_example))
     if DEBUG and 0:
@@ -258,11 +258,11 @@ def train_net(args):
     auxs = None
     fixed_param_names = None
     begin_epoch = args.begin_epoch
-    if args.resume > 0:
+    if args.resume >= 0:
         logger.info("Resume training with {} from epoch {}"
-                    .format(ctx_str, resume))
-        _, params, auxs = mx.model.load_checkpoint(prefix, resume)
-        begin_epoch = resume
+                    .format(ctx_str, args.resume))
+        _, params, auxs = mx.model.load_checkpoint(prefix, args.resume)
+        begin_epoch = args.resume
     elif args.pretrained:
         logger.info("Start training with {} from pretrained model {}"
                     .format(ctx_str, args.pretrained))
@@ -288,24 +288,32 @@ def train_net(args):
 
     valid_metric = CornerNetMetric() #TODO
 
-    if DEBUG and 0:
-        tic = time.time()
+    if DEBUG:
         train_iter.reset()
         n = 20
         mod.bind(data_shapes=train_iter.provide_data, label_shapes=train_iter.provide_label)
         mod.init_params(initializer=mx.init.Xavier())
         mod.init_optimizer(optimizer='adam', optimizer_params=opt_params)
-        for i in range(n):
+        tic = time.time()
+        for i in range(30):
+            tic = time.time()
+            t1 = time.time()
             it = train_iter.next()
+            print('time for it: ',time.time() - t1)
+            t2 = time.time()
             mod.forward_backward(it)
+            print(mod.get_outputs()[0][0].asnumpy())
+            print('time for forward backward: ',time.time() - t2)
+            t3 = time.time()
+
             mod.update()
             mod.update_metric(valid_metric, it.label)
-        mx.nd.waitall()
+            print('time for update ',time.time() - t3)
+            print('tot time: ', time.time() -tic)
+
         print(train_iter.batch_size*n/(time.time() - tic))
         assert 0,'finish'
 
-    train_iter = mx.io.PrefetchingIter(train_iter)
-    val_iter = mx.io.PrefetchingIter(val_iter)
     mod.fit(train_iter,
             val_iter,
             eval_metric=valid_metric,

@@ -272,7 +272,7 @@ def CornerNet(is_train, cfgs):
         br_regr = transpose_and_gather_feature(br_regrs_out, br_inds, cfgs)
     
         loss1 = AELoss(tl_heat_out, br_heat_out, tl_tag, br_tag, tl_regr, br_regr,tl_heatmaps, br_heatmaps, tl_regrs, br_regrs, tag_masks, cfgs)
-        loss = mx.sym.MakeLoss(loss0 + loss1)
+        loss = mx.sym.MakeLoss((loss0 + loss1)/2)
         return mx.sym.Group([loss,mx.sym.BlockGrad(tl_heat_out), mx.sym.BlockGrad(br_heat_out), mx.sym.BlockGrad(tl_tag_out), mx.sym.BlockGrad(br_tag_out), mx.sym.BlockGrad(tl_regrs_out), mx.sym.BlockGrad(br_regrs_out)])#mx.sym.Group([tl_heatmap_loss, br_heatmap_loss, tl_reg_loss, br_reg_loss,tl_regr, tl_regrs_out])
     else: 
         return mx.sym.Group([mx.sym.BlockGrad(tl_heat_out), mx.sym.BlockGrad(br_heat_out), mx.sym.BlockGrad(tl_tag_out), mx.sym.BlockGrad(br_tag_out), mx.sym.BlockGrad(tl_regrs_out), mx.sym.BlockGrad(br_regrs_out)])#mx.sym.Group([tl_heatmap_loss, br_heatmap_loss, tl_reg_loss, br_reg_loss,tl_regr, tl_regrs_out])

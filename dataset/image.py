@@ -2,6 +2,7 @@ from PIL import Image
 import numpy as np
 import os
 import cv2
+cv2.setNumThreads(0)
 import random
 DEBUG = True
 def grayscale(image):
@@ -84,17 +85,11 @@ def random_crop(image, detections, random_scales, view_size, border=64):
 
     return cropped_image, cropped_detections
 def _resize_image(image, detections, size):
-    print('1.1.1')
     detections    = detections.copy()
-    print('1.1.2')
     height, width = image.shape[0:2]
-    print('1.1.3')
     new_height, new_width = size
 
-    print('1.1.4')
-    print(image.shape,new_width, new_height)
     image = cv2.resize(image, (new_width, new_height))
-    print('1.1.5')
 
     height_ratio = new_height / height
     width_ratio  = new_width  / width
@@ -153,7 +148,6 @@ def get_image(roidb,config):
     for i in range(num_images):
         roi_rec = roidb[i]
         assert os.path.exists(roi_rec['image']), '{} does not exist'.format(roi_rec['image'])
-        print(roi_rec['image'])
         im = cv2.imread(roi_rec['image'], cv2.IMREAD_COLOR)
         detections = np.array(roi_rec['boxes']).astype(np.float64)
         if roidb[i]['flipped']:
@@ -165,24 +159,16 @@ def get_image(roidb,config):
 
         if not DEBUG and config['rand_crop']:
             im, detections = random_crop(im, detections, rand_scales, input_size, border)
-        print('im at 1.1')
-        print('im:',im.shape,'det:',detections.shape,'input_size', input_size)
         im, detections = _resize_image(im, detections, input_size)
-        print('im at 1.2')
         boxes = np.zeros((detections.shape[0],5))
-        print('im at 1.3')
         boxes[:,:4] = detections
-        print('im at 1.4')
         boxes[:,4] = roi_rec['gt_classes'] - 1
-        print('im at 1.5')
         boxes  = _clip_detections(im, boxes)
-        print('im at 1.6')
         if len(boxes) != 0 and boxes.max() > 510:
             import pdb
             pdb.set_trace()
             stop = 1
 
-        print('im at 2')
 
         im = im.astype(np.float32)/255.
         if not DEBUG and config['rand_color']:
@@ -193,7 +179,6 @@ def get_image(roidb,config):
 
 
 
-        print('im at 3')
         processed_ims.append(im_tensor)
         processed_boxes.append(boxes)
     return processed_ims, processed_boxes
@@ -205,7 +190,6 @@ def get_test_image(roidb,config):
     for i in range(num_images):
         roi_rec = roidb[i]
         assert os.path.exists(roi_rec['image']), '{} does not exist'.format(roi_rec['image'])
-        print(roi_rec['image'])
         im = cv2.imread(roi_rec['image'], cv2.IMREAD_COLOR)
 
         

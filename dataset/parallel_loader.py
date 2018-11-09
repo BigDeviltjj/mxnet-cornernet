@@ -5,8 +5,9 @@ import cv2
 from .utils import gaussian_radius, draw_gaussian
 from .image import get_image
 import multiprocessing as mp
+#mp.set_start_method('spawn',force = True)
 import threading
-
+import time
 
 
 class DetRecordIter(mx.io.DataIter):
@@ -26,6 +27,7 @@ class DetRecordIter(mx.io.DataIter):
         self._num_workers = num_workers
         self.pin_memory = pin_memory
         self.reset()
+        self.next()
 
 
     def _push_next(self):
@@ -37,7 +39,6 @@ class DetRecordIter(mx.io.DataIter):
         self.cur += self.batch_size
         self._key_queue.put((self._sent_idx, r))
         self._sent_idx += 1
-        print('push next idx: ',self._sent_idx - 1)
 
 #        self._get_batch()
 #        if not self.provide_label:
@@ -45,25 +46,25 @@ class DetRecordIter(mx.io.DataIter):
 
     def worker_loop(self, key_queue, data_queue):
         while True:
-            idx, (s,e) = key_queue.get()
+            idx, dur = key_queue.get()
             if idx is None:
                 break
-            print('worker process start')
+            s,e = dur
+            t = time.time()
             batch = self._get_batch(s,e)
-            print('worker process finished')
             data_queue.put((idx, batch))
     def fetcher_loop(self, data_queue, data_buffer, pin_memory = False):
         while True:
-            print('fetcher loop ')
             idx, batch = data_queue.get()
-            print('fetcher loop idx:',idx)
+            t = time.time()
             if idx is None:
                 return
             if pin_memory:
-                batch = ([d.as_in_context(mx.cpu_pinned()) for d in data[0]], [d.as_in_context(mx.cpu_pinned()) for d in data[1]])
-            else:
-                batch = ([d.as_in_context(mx.cpu()) for d in data[0]], [d.as_in_context(mx.cpu()) for d in data[1]])
+                batch = ([d.as_in_context(mx.cpu_pinned()) for d in batch[0]], [d.as_in_context(mx.cpu_pinned()) for d in batch[1]])
+#            else:
+#                batch = ([d.as_in_context(mx.cpu()) for d in batch[0]], [d.as_in_context(mx.cpu()) for d in batch[1]])
             data_buffer[idx] = batch
+
 
 
 
@@ -73,7 +74,8 @@ class DetRecordIter(mx.io.DataIter):
         self.cur = 0
         self._key_queue = mp.Queue()
         self._data_queue = mp.Queue()
-        self._data_buffer = {}
+#        self._data_buffer = {}
+        self._data_buffer = mp.Manager().dict()
         self._rcvd_idx = 0
         self._sent_idx = 0
         self._shutdown = False
@@ -84,7 +86,8 @@ class DetRecordIter(mx.io.DataIter):
             worker.start()
             workers.append(worker)
 
-        self._fetcher = threading.Thread(
+#        self._fetcher = threading.Thread(
+        self._fetcher = mp.Process(
                 target = self.fetcher_loop,
                 args = (self._data_queue, self._data_buffer, self.pin_memory))
         self._fetcher.daemon = True
@@ -96,7 +99,6 @@ class DetRecordIter(mx.io.DataIter):
 #        return self.cur + self.batch_size <= self.size
 
     def next(self):
-        print(self._rcvd_idx, self._sent_idx)
         if self._rcvd_idx == self._sent_idx:
             assert not self._data_buffer, 'data buffer shold be empty'
             self.shutdown()
@@ -104,7 +106,7 @@ class DetRecordIter(mx.io.DataIter):
 
         while True:
             if self._rcvd_idx in self._data_buffer:
-                batch = self._data_buffer.pop(self.rcvd_idx)
+                batch = self._data_buffer.pop(self._rcvd_idx)
                 self._rcvd_idx +=1
                 self._push_next()
                 self.provide_data = [(k,v.shape) for k,v in zip(self.data_names, batch[0])]
