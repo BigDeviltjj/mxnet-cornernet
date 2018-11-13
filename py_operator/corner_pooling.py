@@ -91,15 +91,14 @@ class CornerPoolingProp(mx.operator.CustomOpProp):
 
 if __name__ == '__main__':
     if DEBUG:
+        mx.random.seed(123)
         a = mx.sym.Variable('a')
         b = mx.sym.Custom(corner_input = a, corner_type = 'b', op_type = 'corner_pooling', name = 'corner')
-        tot = b*b
-        tot = mx.sym.MakeLoss(tot)
-        exe = tot.simple_bind(ctx = mx.cpu(),a = (3,3,3,3))
-        it = mx.nd.arange(0,81)
-        it = mx.nd.shuffle(it)
-        it = it.reshape((3,3,3,3))
+        b = mx.sym.MakeLoss(b)
+        exe = b.simple_bind(ctx = mx.cpu(),a = (2,2,5,5))
+        it = mx.nd.random.shuffle(mx.nd.arange(100)).reshape((2,2,5,5))
         print(it)
+
         exe.forward(is_train = True, a=it)
         exe.backward()
         print('output',exe.outputs)

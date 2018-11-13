@@ -86,7 +86,7 @@ def evaluate_net(args):
     all_boxes = [[[] for _ in range(len(val_roidb))] for _ in range(num_classes + 1)]
     eval_iter.reset()
     for idx,(info, it) in enumerate(eval_iter):
-        print('predicting %d th image'%idx)
+        print('predicting image %d'%idx)
         mod.forward(it,is_train = False)
         out = mod.get_outputs()
         bboxes = decode(*out, info, cfg['test_scales'])

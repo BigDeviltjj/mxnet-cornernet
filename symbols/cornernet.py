@@ -202,29 +202,29 @@ def CornerNet(is_train, cfgs):
     feat = Hourglass(inter, n , dims, modules, is_train)
     
     cnv = conv(inputs = feat, k = 3, out_dim = 256, stride = 1, is_train = is_train, name = 'cnv_0')
-    tl_cnv = corner_cnv(cnv, name = 'tl_0', is_train = is_train)
-    br_cnv = corner_cnv(cnv, name = 'br_0', is_train = is_train)
-
-    tl_heat1 = conv(tl_cnv, 3, 256, 1, is_train,name = 'tl_heats_0_0', with_bn = False)
-    tl_heat_out = mx.symbol.Convolution(data = tl_heat1, kernel = (1, 1), num_filter = cfgs['num_classes'], pad = (0, 0), stride = (1, 1), no_bias = False, name = 'tl_heats_0_1')
-
-    br_heat1 = conv(br_cnv, 3, 256, 1, is_train,name = 'br_heats_0_0', with_bn = False)
-    br_heat_out = mx.symbol.Convolution(data = br_heat1, kernel = (1, 1), num_filter = cfgs['num_classes'], pad = (0, 0), stride = (1, 1), no_bias = False, name = 'br_heats_0_1')
-
-    tl_tag1 = conv(tl_cnv, 3, 256, 1, is_train,name = 'tl_tags_0_0', with_bn = False)
-    tl_tag_out = mx.symbol.Convolution(data = tl_tag1, kernel = (1, 1), num_filter = 1, pad = (0, 0), stride = (1, 1), no_bias = False, name = 'tl_tags_0_1')
-
-    br_tag1 = conv(br_cnv, 3, 256, 1, is_train,name = 'br_tags_0_0', with_bn = False)
-    br_tag_out = mx.symbol.Convolution(data = br_tag1, kernel = (1, 1), num_filter = 1, pad = (0, 0), stride = (1, 1), no_bias = False, name = 'br_tags_0_1')
-
-    tl_regrs1 = conv(tl_cnv, 3, 256, 1, is_train,name = 'tl_regrs_0_0', with_bn = False)
-    tl_regrs_out = mx.symbol.Convolution(data = tl_regrs1, kernel = (1, 1), num_filter = 2, pad = (0, 0), stride = (1, 1), no_bias = False, name = 'tl_regrs_0_1')
-
-    br_regrs1 = conv(br_cnv, 3, 256, 1, is_train,name = 'br_regrs_0_0', with_bn = False)
-    br_regrs_out = mx.symbol.Convolution(data = br_regrs1, kernel = (1, 1), num_filter = 2, pad = (0, 0), stride = (1, 1), no_bias = False, name = 'br_regrs_0_1')
-
-
     if is_train:
+        tl_cnv = corner_cnv(cnv, name = 'tl_0', is_train = is_train)
+        br_cnv = corner_cnv(cnv, name = 'br_0', is_train = is_train)
+    
+        tl_heat1 = conv(tl_cnv, 3, 256, 1, is_train,name = 'tl_heats_0_0', with_bn = False)
+        tl_heat_out = mx.symbol.Convolution(data = tl_heat1, kernel = (1, 1), num_filter = cfgs['num_classes'], pad = (0, 0), stride = (1, 1), no_bias = False, name = 'tl_heats_0_1')
+    
+        br_heat1 = conv(br_cnv, 3, 256, 1, is_train,name = 'br_heats_0_0', with_bn = False)
+        br_heat_out = mx.symbol.Convolution(data = br_heat1, kernel = (1, 1), num_filter = cfgs['num_classes'], pad = (0, 0), stride = (1, 1), no_bias = False, name = 'br_heats_0_1')
+    
+        tl_tag1 = conv(tl_cnv, 3, 256, 1, is_train,name = 'tl_tags_0_0', with_bn = False)
+        tl_tag_out = mx.symbol.Convolution(data = tl_tag1, kernel = (1, 1), num_filter = 1, pad = (0, 0), stride = (1, 1), no_bias = False, name = 'tl_tags_0_1')
+    
+        br_tag1 = conv(br_cnv, 3, 256, 1, is_train,name = 'br_tags_0_0', with_bn = False)
+        br_tag_out = mx.symbol.Convolution(data = br_tag1, kernel = (1, 1), num_filter = 1, pad = (0, 0), stride = (1, 1), no_bias = False, name = 'br_tags_0_1')
+    
+        tl_regrs1 = conv(tl_cnv, 3, 256, 1, is_train,name = 'tl_regrs_0_0', with_bn = False)
+        tl_regrs_out = mx.symbol.Convolution(data = tl_regrs1, kernel = (1, 1), num_filter = 2, pad = (0, 0), stride = (1, 1), no_bias = False, name = 'tl_regrs_0_1')
+    
+        br_regrs1 = conv(br_cnv, 3, 256, 1, is_train,name = 'br_regrs_0_0', with_bn = False)
+        br_regrs_out = mx.symbol.Convolution(data = br_regrs1, kernel = (1, 1), num_filter = 2, pad = (0, 0), stride = (1, 1), no_bias = False, name = 'br_regrs_0_1')
+
+
         tl_tag = transpose_and_gather_feature(tl_tag_out, tl_inds, cfgs)
         br_tag = transpose_and_gather_feature(br_tag_out, br_inds, cfgs)
         tl_regr = transpose_and_gather_feature(tl_regrs_out, tl_inds, cfgs)
