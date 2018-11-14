@@ -1,6 +1,6 @@
 import numpy as np
 cfg = {
-        'batch_size': 6,
+        'batch_size': 8,
         'rand_scales': [1],
         "num_classes": 80,
         "max_tag_len": 128,

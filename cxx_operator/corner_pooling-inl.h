@@ -73,6 +73,16 @@ namespace op {
 int GetNumOutputs(const CornerPoolingParam &param);
 int GetNumBackInputs(const CornerPoolingParam &param);
 template<typename DType>
+inline void corner_pool(mshadow::Stream<gpu>* s, const DType* in_data, const TShape& ishape,
+    const int corner_pooling_type, OpReqType req_type, DType* out_data);
+
+template<typename DType>
+inline void corner_pool_grad(mshadow::Stream<gpu>* s, const DType* out_grad, const DType* in_data,
+    const DType* out_data, const TShape& ishape,
+    const int corner_pooling_type, OpReqType req_type, DType* in_grad);
+
+
+template<typename DType>
 inline void corner_pool(mshadow::Stream<cpu>* s, const DType* in_data, const TShape& ishape,
                  const int corner_pooling_type, OpReqType req_type, DType* out_data) {
   using mshadow::red::limits::MinValue;
@@ -115,7 +125,6 @@ inline void corner_pool(mshadow::Stream<cpu>* s, const DType* in_data, const TSh
         w_start = 0;
         w_end = width;
     }
-    LOG(INFO)<<ishape<<" in shape ";
 
     const index_t data_offset = width * height;
     for (index_t b{0}; b < ishape[0]; ++b)

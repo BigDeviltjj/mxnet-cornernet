@@ -75,7 +75,6 @@ static bool CornerPoolingShape(const nnvm::NodeAttrs &attrs,
   if (dshape.ndim() == 0) return false;
   out_shape->clear();
   out_shape->push_back(oshape);
-  LOG(INFO)<<out_shape<<" outshape";
   return true;
 }
 

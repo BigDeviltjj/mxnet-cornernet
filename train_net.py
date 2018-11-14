@@ -35,7 +35,7 @@ def parse_args():
     parser.add_argument('--prefix', dest='prefix', help='new model prefix',
                         default=os.path.join(os.getcwd(), 'output', 'exp1', 'cornerNet'), type=str)
     parser.add_argument('--gpus', dest='gpus', help='GPU devices to train with',
-                        default='0', type=str)
+                        default='0,1', type=str)
     parser.add_argument('--begin-epoch', dest='begin_epoch', help='begin epoch of training',
                         default=0, type=int)
     parser.add_argument('--end-epoch', dest='end_epoch', help='end epoch of training',
@@ -54,12 +54,6 @@ def parse_args():
                         help='momentum')
     parser.add_argument('--wd', dest='weight_decay', type=float, default=0.0005,
                         help='weight decay')
-    parser.add_argument('--mean-r', dest='mean_r', type=float, default=123,
-                        help='red mean value')
-    parser.add_argument('--mean-g', dest='mean_g', type=float, default=117,
-                        help='green mean value')
-    parser.add_argument('--mean-b', dest='mean_b', type=float, default=104,
-                        help='blue mean value')
     parser.add_argument('--lr-steps', dest='lr_refactor_step', type=str, default='90',
                         help='refactor learning rate at specified epochs')
     parser.add_argument('--lr-factor', dest='lr_refactor_ratio', type=str, default=0.1,
@@ -157,7 +151,6 @@ def train_net(args):
     ctx_str = '(' + ','.join([str(c) for c in ctx]) + ')'
     cfg['num_ctx'] = len(ctx)
     sym = CornerNet(is_train = True, cfgs = cfg)
-    mean_pixels = [args.mean_r,args.mean_g,args.mean_b]
     trainset = args.trainset.split('+')
     valset = args.valset.split('+')
 
