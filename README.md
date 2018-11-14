@@ -1,10 +1,10 @@
-### CornerNet
+## CornerNet
 
 reproduce of [Cornernet](https://arxiv.org/pdf/1808.01244v1.pdf)
 
 developing...,  almost finished.
 
-# requirements
+## requirements
 
 * To compile corner pooling layer, yo need toinstall mxnet 1.3.0, then put the files in cxx_operator into src/operator/nn/ in mxnet source code and compile it, then run
 
@@ -17,14 +17,14 @@ Alternatively, you can uncomment line 92 and 93 and comment line 94, 95 in symbo
 
 * run init.sh to compile nms and pycocotools
 
-# TRAIN
+## TRAIN
 you can change the batch_size in config/cfg.py according to your gpus' number and their computation abilies, but make sure that batch_size number is proportional to the number of gpus.
 
 ```
 python train.py --gpus 0,1
 ```
 
-# TEST
+## TEST
 train model will be uploaded soon.
 
 ```
