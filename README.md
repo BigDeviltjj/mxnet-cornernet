@@ -2,7 +2,9 @@
 
 Reproduce of [Cornernet](https://arxiv.org/pdf/1808.01244v1.pdf)
 
-## requirements
+The original pytorch implementation repository is [here](https://github.com/princeton-vl/CornerNet)
+
+## Requirements
 
 * You will need python modules: cv2, matplotlib and numpy.
 
@@ -28,7 +30,7 @@ Alternatively, you can uncomment line 92 and 93 and comment line 94, 95 in symbo
 ## mAP
 |        Model          | Training data    | Test data |  mAP |
 |:-----------------:|:----------------:|:---------:|:----:|
-| [CornerNet_coco_511x511](https://github.com/zhreshold/mxnet-ssd/releases/download/v0.5-beta/vgg16_ssd_300_voc0712_trainval.zip) | train2014+valminusminival2014| minival2014| 38.9|
+| [CornerNet_coco_511x511](https://drive.google.com/drive/folders/1kPZaK4bRwzVuyij_uC0_niupw-VlLmcV) | train2014+valminusminival2014| minival2014| 38.9|
 
 ## TRAIN
 
@@ -40,7 +42,7 @@ python train.py --gpus 0,1
 
 ## TEST
 
-Download [CornerNet_coco_511x511](https://github.com/zhreshold/mxnet-ssd/releases/download/v0.5-beta/vgg16_ssd_300_voc0712_trainval.zip) and put it in model/, then run
+Download the compressed model from [CornerNet_coco_511x511](https://drive.google.com/drive/folders/1kPZaK4bRwzVuyij_uC0_niupw-VlLmcV) and unzip it then put it in model/, then run
 
 ```
 python test.py --prefix model/cornernet --epoch 100 --gpus 0
