@@ -89,8 +89,8 @@ def corner_cnv(cnv, name, is_train):
     conv2 = conv(cnv, 3, 128, 1, is_train, name = name + '_p2_conv1')
     conv_skip = mx.symbol.Convolution(data = cnv, num_filter = 256, kernel = (1,1), pad = (0, 0), stride = (1, 1), no_bias = True, name = name + '_conv1')
     bn_skip = mx.symbol.BatchNorm(name = name + '_bn1', data = conv_skip, use_global_stats = not is_train, fix_gamma = False)
-#    pool1 = mx.sym.Custom(corner_input = conv1, corner_type = name[0], op_type = 'corner_pooling', name = 'corner_pooling_' + name[0]+name[-2:])
-#    pool2 = mx.sym.Custom(corner_input = conv2, corner_type = name[1], op_type = 'corner_pooling', name = 'corner_pooling_' + name[1]+name[-2:])
+    #pool1 = mx.sym.Custom(corner_input = conv1, corner_type = name[0], op_type = 'corner_pooling', name = 'corner_pooling_' + name[0]+name[-2:])
+    #pool2 = mx.sym.Custom(corner_input = conv2, corner_type = name[1], op_type = 'corner_pooling', name = 'corner_pooling_' + name[1]+name[-2:])
     pool1 = mx.sym.CornerPooling(conv1, corner_pooling_type = corner_dict[name[0]], name = 'corner_pooling_' + name[0]+name[-2:])
     pool2 = mx.sym.CornerPooling(conv2, corner_pooling_type = corner_dict[name[1]], name = 'corner_pooling_' + name[1]+name[-2:])
     pool_out = pool1 + pool2

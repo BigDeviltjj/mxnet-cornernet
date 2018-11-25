@@ -1,6 +1,6 @@
 import numpy as np
 import mxnet as mx
-from .nms.nms import py_nms
+from .nms.nms import py_nms, soft_nms
 
 def _nms(heat, kernel = 3):
     pad = (kernel - 1)//2
@@ -146,7 +146,8 @@ def decode(tl_heat, br_heat,
         keep_inds = (classes == j)
         ret_bboxes[j+1] = dets[keep_inds,:7].astype(np.float32)
 
-        keep = py_nms(ret_bboxes[j+1], nms_threshold)
+#        keep = py_nms(ret_bboxes[j+1], nms_threshold)
+        keep = soft_nms(ret_bboxes[j+1], nms_threshold)
         ret_bboxes[j+1] = ret_bboxes[j+1][keep,:5]
     scores = np.hstack([ret_bboxes[j][:,-1]
                         for j in range(1,c+1)])

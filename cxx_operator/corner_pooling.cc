@@ -16,46 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 /*!
- * Copyright (c) 2017 by Contributors
- * \file pooling.cc
- * \brief
- * \author Bing Xu, Jun Wu, Da Zheng
+ * Copyright (c) 2018 by Contributors
+ * \file corner_pooling.cc
+ * \brief corner pooling operator
+ * \author Jiajie Tang 
 */
-#include "../elemwise_op_common.h"
-#include "./corner_pooling-inl.h"
-#include <mxnet/base.h>
-#include <mxnet/operator.h>
-#include "../mxnet_op.h"
-#include "../mshadow_op.h"
 
-// #if MXNET_USE_NNPACK == 1
-// // #include "../nnpack/nnpack_pooling-inl.h"
-// #endif  // MXNET_USE_NNPACK
-// #if MXNET_USE_MKLDNN == 1
-// // #include "./mkldnn/mkldnn_pooling-inl.h"
-// // #include "./mkldnn/mkldnn_base-inl.h"
-// #endif  // MXNET_USE_MKLDNN
+#include "./corner_pooling-inl.h"
+
+#include "../elemwise_op_common.h"
+
 namespace mxnet {
 namespace op {
 
 void CornerPoolingParamParser(nnvm::NodeAttrs *attrs) {
-  using namespace mshadow;
   CornerPoolingParam param;
   param.Init(attrs->dict);
   attrs->parsed = std::move(param);
 }
 
-int GetNumOutputs(const CornerPoolingParam &param) {
-  return 1;
-}
 
-int GetNumBackInputs(const CornerPoolingParam &param) {
-  return 3;
-}
-
-static bool CornerPoolingType(const nnvm::NodeAttrs& attrs,
+static bool CornerPoolingType(const nnvm::NodeAttrs &attrs,
                               std::vector<int> *in_attrs,
                               std::vector<int> *out_attrs) {
   out_attrs->at(0) = in_attrs->at(0);
@@ -84,7 +66,16 @@ static bool CornerPoolingShape(const nnvm::NodeAttrs &attrs,
 DMLC_REGISTER_PARAMETER(CornerPoolingParam);
 
 NNVM_REGISTER_OP(CornerPooling)
-.describe(ADD_FILELINE)
+.describe(R"code(Performs corner pooling over a 4D input with the shape of (NCHW).
+    
+Four corner pooling options are supported by ``corner_pooling_type``:
+
+- **left**: left corner pooling
+- **right**: right corner pooling
+- **top**: top corner pooling
+- **bottom**: bottom corner pooling
+
+)code" ADD_FILELINE)
 .set_num_inputs(1)
 .set_num_outputs([](const NodeAttrs& attrs) {
   const CornerPoolingParam &param = nnvm::get<CornerPoolingParam>(attrs.parsed);
@@ -118,11 +109,7 @@ NNVM_REGISTER_OP(_backward_CornerPooling)
 .set_attr<nnvm::FInplaceOption>(
     "FInplaceOption",
     [](const NodeAttrs &attrs) {
-// #if MXNET_USE_CUDNN == 1
-//   return std::vector<std::pair<int, int> >();
-// #else
   return std::vector<std::pair<int, int> >{{1, 0}};
-// #endif
 })
 .set_attr_parser(CornerPoolingParamParser)
 .set_attr<FCompute>("FCompute<cpu>", CornerPoolingGradCompute<cpu>);
