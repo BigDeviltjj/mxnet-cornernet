@@ -16,7 +16,7 @@ import time
 def parse_args():
     parser = argparse.ArgumentParser(description='Train cornernet detection network')
     parser.add_argument('--train-set', dest='trainset', help='train set to use',
-                        default='train2014', type=str)
+                        default='train2014+valminusminival2014', type=str)
     parser.add_argument('--val-set', dest='valset', help='validation record to use',
                         default='minival2014', type=str)
     parser.add_argument('--dataset', dest='dataset', help='dataset to use',
