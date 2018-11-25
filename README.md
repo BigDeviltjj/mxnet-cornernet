@@ -21,9 +21,9 @@ Alternatively, you can uncomment line 92 and 93 and comment line 94, 95 in symbo
 
 ## Demo results
 
-![demo1](https://github.com/BigDeviltjj/mxnet-cornernet/images/image_0000.jpg)
+![demo1](https://github.com/BigDeviltjj/mxnet-cornernet/blob/master/images/image_0000.jpg)
 
-![demo2](https://github.com/BigDeviltjj/mxnet-cornernet/images/image_0084.jpg)
+![demo2](https://github.com/BigDeviltjj/mxnet-cornernet/blob/master/images/image_0084.jpg)
 
 ## mAP
 |        Model          | Training data    | Test data |  mAP |
