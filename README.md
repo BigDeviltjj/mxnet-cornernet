@@ -34,6 +34,8 @@ Alternatively, you can uncomment line 92 and 93 and comment line 94, 95 in symbo
 
 ## TRAIN
 
+You need to put the coco image files in date.
+
 You can change the batch_size in config/cfg.py according to your gpu number and their computation abilies, but make sure that batch_size number is proportional to the number of gpus.
 
 ```
