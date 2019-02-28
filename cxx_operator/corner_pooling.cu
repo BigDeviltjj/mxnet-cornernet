@@ -27,8 +27,8 @@
 
 #include <vector>
 
-#include <mshadow/cuda/tensor_gpu-inl.cuh>
-#include <mshadow/tensor.h>
+#include "mshadow/cuda/tensor_gpu-inl.cuh"
+#include "mshadow/tensor.h"
 
 
 namespace mxnet {
@@ -51,7 +51,7 @@ __global__ void CornerPoolingForwardTBKernel(const int count,
     in_data += (b*channel + c)*height*width + w;
     out_data += (b*channel + c)*height*width + w;
 
-    for (int h{h_start}; h != h_end; h += h_step) {
+    for (int h = h_start; h != h_end; h += h_step) {
       const int index = h * width;
       max_val = max_val > in_data[index] ? max_val : in_data[index];
       out_data[index] = max_val;
@@ -78,7 +78,7 @@ __global__ void CornerPoolingBackwardTBKernel(const int count,
     in_grad += (b*channel + c)*height*width + w;
 
     int max_h_idx = h_start;
-    for (int h{h_start}; h != h_end; h += h_step) {
+    for (int h = h_start; h != h_end; h += h_step) {
       const int index = h * width;
       if (out_data[index] != out_data[max_h_idx]) {
         max_h_idx = index;
@@ -106,7 +106,7 @@ __global__ void CornerPoolingForwardLRKernel(const int count,
     in_data += ((b*channel + c)*height + h)*width;
     out_data += ((b*channel + c)*height + h)*width;
 
-    for (int w{w_start}; w != w_end; w += w_step) {
+    for (int w = w_start; w != w_end; w += w_step) {
       const int index = w;
       max_val = max_val > in_data[index] ? max_val : in_data[index];
       out_data[index] = max_val;
@@ -133,7 +133,7 @@ __global__ void CornerPoolingBackwardLRKernel(const int count,
     in_grad += ((b*channel + c)*height + h)*width;
 
     int max_w_idx = w_start;
-    for (int w{w_start}; w != w_end; w += w_step) {
+    for (int w = w_start; w != w_end; w += w_step) {
       const int index = w;
       if (out_data[index] != out_data[max_w_idx]) {
         max_w_idx = index;
@@ -218,6 +218,11 @@ inline void corner_pool_grad(mshadow::Stream<gpu> *s,
                    const DType *out_data, const TShape &ishape,
                    const int corner_pooling_type, OpReqType req_type,
                    DType *in_grad) {
+  if (mxnet::kNullOp == req_type) return;
+  if (mxnet::kAddTo != req_type) {
+    mxnet_op::Kernel<mxnet_op::set_zero, gpu>::Launch(s, ishape.Size(),
+                                                      in_grad);
+  }
   const int height = ishape[2], width = ishape[3];
   if (corner_pooling_type == 0 || corner_pooling_type == 1) {
     // top or bottom
@@ -278,10 +283,10 @@ inline void corner_pool_grad(mshadow::Stream<gpu> *s,
 }
 
 
-NNVM_REGISTER_OP(CornerPooling)
+NNVM_REGISTER_OP(_contrib_CornerPooling)
 .set_attr<FCompute>("FCompute<gpu>", CornerPoolingCompute<gpu>);
 
-NNVM_REGISTER_OP(_backward_CornerPooling)
+NNVM_REGISTER_OP(_backward_contrib_CornerPooling)
 .set_attr<FCompute>("FCompute<gpu>", CornerPoolingGradCompute<gpu>);
 
 }  // namespace op

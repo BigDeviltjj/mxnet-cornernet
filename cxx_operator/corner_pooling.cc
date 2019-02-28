@@ -33,15 +33,18 @@ namespace op {
 void CornerPoolingParamParser(nnvm::NodeAttrs *attrs) {
   CornerPoolingParam param;
   param.Init(attrs->dict);
-  attrs->parsed = std::move(param);
+  attrs->parsed = param;
 }
 
 
 static bool CornerPoolingType(const nnvm::NodeAttrs &attrs,
                               std::vector<int> *in_attrs,
                               std::vector<int> *out_attrs) {
-  out_attrs->at(0) = in_attrs->at(0);
-  return true;
+  CHECK_EQ(in_attrs->size(), 1);
+  CHECK_EQ(out_attrs->size(), 1);
+  TYPE_ASSIGN_CHECK(*out_attrs, 0, in_attrs->at(0));
+  TYPE_ASSIGN_CHECK(*in_attrs, 0, out_attrs->at(0));
+  return out_attrs->at(0) != -1;
 }
 
 static bool CornerPoolingShape(const nnvm::NodeAttrs &attrs,
@@ -53,10 +56,9 @@ static bool CornerPoolingShape(const nnvm::NodeAttrs &attrs,
 
   CHECK_EQ(dshape.ndim(), 4U)
       << "CornerPooling: Input data should be  4D in (batch, channel, h, w)";
-  TShape oshape = dshape;
   if (dshape.ndim() == 0) return false;
   out_shape->clear();
-  out_shape->push_back(oshape);
+  out_shape->push_back(dshape);
   return true;
 }
 
@@ -65,7 +67,7 @@ static bool CornerPoolingShape(const nnvm::NodeAttrs &attrs,
 
 DMLC_REGISTER_PARAMETER(CornerPoolingParam);
 
-NNVM_REGISTER_OP(CornerPooling)
+NNVM_REGISTER_OP(_contrib_CornerPooling)
 .describe(R"code(Performs corner pooling over a 4D input with the shape of (NCHW).
     
 Four corner pooling options are supported by ``corner_pooling_type``:
@@ -98,12 +100,12 @@ Four corner pooling options are supported by ``corner_pooling_type``:
 .set_attr<nnvm::FInferShape>("FInferShape", CornerPoolingShape)
 .set_attr<FCompute>("FCompute<cpu>", CornerPoolingCompute<cpu>)
 .set_attr<nnvm::FGradient>("FGradient",
-                           ElemwiseGradUseInOut{"_backward_CornerPooling"})
+                ElemwiseGradUseInOut{"_backward_contrib_CornerPooling"})
 .add_argument("data", "NDArray-or-Symbol",
               "Input data to the corner pooling operator.")
 .add_arguments(CornerPoolingParam::__FIELDS__());
 
-NNVM_REGISTER_OP(_backward_CornerPooling)
+NNVM_REGISTER_OP(_backward_contrib_CornerPooling)
 .set_num_outputs(1)
 .set_attr<nnvm::TIsBackward>("TIsBackward", true)
 .set_attr<nnvm::FInplaceOption>(
